@@ -132,11 +132,12 @@ tr.thin td.bar { color: var(--warn); font-weight: 500; }
 <div class="wrap">
   <header>
     <h1>Code 128 Label Maker</h1>
-    <p>Enter one code per line. Barcodes fill the sheet from the top-left corner, left to right and then top to bottom, with a gap of half the bar height between rows. Dotted lines mark each column's container width. Download the sheet as a PDF and print it at 100% scale.</p>
+    <p>Enter one code per line in Make labels. Print turns them into a PDF label sheet, and Scan view shows them full size on your phone.</p>
   </header>
 
   <div class="tabs" role="tablist" aria-label="View">
     <button type="button" role="tab" id="tab-make" aria-selected="true" aria-controls="view-make">Make labels</button>
+    <button type="button" role="tab" id="tab-print" aria-selected="false" aria-controls="view-print">Print</button>
     <button type="button" role="tab" id="tab-scan" aria-selected="false" aria-controls="view-scan">Scan view <span class="tabcount" id="scan-count"></span></button>
   </div>
 
@@ -153,31 +154,10 @@ tr.thin td.bar { color: var(--warn); font-weight: 500; }
     <div class="scanlist" id="scan-list"></div>
   </div>
 
-  <div id="view-make" class="view" role="tabpanel" aria-labelledby="tab-make">
+  <div id="view-print" class="view" role="tabpanel" aria-labelledby="tab-print" hidden>
+  <p class="hint">Barcodes fill the sheet from the top-left corner, left to right and then top to bottom, with a gap of half the bar height between rows. Dotted lines mark each column's container width. Download the sheet as a PDF and print it at 100% scale.</p>
   <div class="grid">
-    <form class="panel" id="form" autocomplete="off">
-      <div class="field">
-        <label for="codes">Codes, one per line</label>
-        <textarea id="codes" rows="12" spellcheck="false">c01H1000
-c01H1001
-c01H1002
-c01H1003</textarea>
-        <p class="hint">The last three are example values. Replace them with your own. To print a name under a barcode, add it after a bar: <code>c01H1000 | Bin A-12</code>. Names always print. Pasting two columns from a spreadsheet works too.</p>
-        <div class="actions">
-          <button type="button" class="linkbtn" id="share-all">Copy share link for all codes</button>
-          <button type="button" class="linkbtn" id="clear-codes">Clear all codes</button>
-        </div>
-        <p class="hint" id="share-all-note" role="status"></p>
-        <div class="err" id="err" hidden></div>
-      </div>
-
-      <div class="field">
-        <span class="lbl">Builds</span>
-        <p class="hint">Start a build with a heading line like <code># Tank</code>. Every code under it belongs to that build until the next heading. Scan view lets you switch between builds. Delete a heading and its lines to remove a build. Cards you click in the card list are added to the last build.</p>
-        <button type="button" class="linkbtn" id="add-build">+ Add a build heading</button>
-        <p class="hint" id="build-sync"></p>
-      </div>
-
+    <form class="panel" id="pform" autocomplete="off">
       <div class="field">
         <span class="lbl" id="enc-lbl">Encoding</span>
         <div class="seg" role="group" aria-labelledby="enc-lbl">
@@ -228,6 +208,7 @@ c01H1003</textarea>
 
       <label class="check"><input type="checkbox" id="text"> Print the code under barcodes that have no name</label>
       <label class="check"><input type="checkbox" id="guides" checked> Dotted outline around the barcodes, at the container width</label>
+      <div class="err" id="perr" hidden></div>
     </form>
 
     <section class="panel" aria-label="Print sheet">
@@ -253,26 +234,55 @@ c01H1003</textarea>
       </div>
     </section>
   </div>
+  </div>
 
-  <section class="panel" aria-labelledby="cat-title">
-    <div class="cathead">
-      <h2 id="cat-title">Card list</h2>
-      <span class="hint" id="cat-src">Loading cards.json…</span>
-      <label class="filebtn">Load a different JSON file<input type="file" id="cat-file" accept=".json,application/json"></label>
-    </div>
-    <p class="hint">Click a code to add it, with its name, to the codes box. Click again to add another copy.</p>
-    <div class="catctl">
-      <input type="search" id="cat-q" placeholder="Search name, number or code" aria-label="Search cards">
-      <select id="cat-type" aria-label="Filter by type"><option value="">All types</option></select>
-      <button type="button" class="btn ghost" id="cat-all">Add all shown</button>
-    </div>
-    <div class="catwrap">
-      <table>
-        <thead><tr><th class="n">#</th><th>Name</th><th>Type</th><th>Rarity</th><th>Code</th></tr></thead>
-        <tbody id="cat-rows"></tbody>
-      </table>
-    </div>
-  </section>
+  <div id="view-make" class="view" role="tabpanel" aria-labelledby="tab-make">
+  <div class="grid">
+    <form class="panel" id="form" autocomplete="off">
+      <div class="field">
+        <label for="codes">Codes, one per line</label>
+        <textarea id="codes" rows="12" spellcheck="false">c01H1000
+c01H1001
+c01H1002
+c01H1003</textarea>
+        <p class="hint">The last three are example values. Replace them with your own. To print a name under a barcode, add it after a bar: <code>c01H1000 | Bin A-12</code>. Names always print. Pasting two columns from a spreadsheet works too.</p>
+        <div class="actions">
+          <button type="button" class="linkbtn" id="share-all">Copy share link for all codes</button>
+          <button type="button" class="linkbtn" id="clear-codes">Clear all codes</button>
+        </div>
+        <p class="hint" id="share-all-note" role="status"></p>
+        <div class="err" id="err" hidden></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Builds</span>
+        <p class="hint">Start a build with a heading line like <code># Tank</code>. Every code under it belongs to that build until the next heading. Scan view lets you switch between builds. Delete a heading and its lines to remove a build. Cards you click in the card list are added to the last build.</p>
+        <button type="button" class="linkbtn" id="add-build">+ Add a build heading</button>
+        <p class="hint" id="build-sync"></p>
+      </div>
+
+    </form>
+
+    <section class="panel" aria-labelledby="cat-title">
+      <div class="cathead">
+        <h2 id="cat-title">Card list</h2>
+        <span class="hint" id="cat-src">Loading cards.json…</span>
+        <label class="filebtn">Load a different JSON file<input type="file" id="cat-file" accept=".json,application/json"></label>
+      </div>
+      <p class="hint">Click a code to add it, with its name, to the codes box. Click again to add another copy.</p>
+      <div class="catctl">
+        <input type="search" id="cat-q" placeholder="Search name, number or code" aria-label="Search cards">
+        <select id="cat-type" aria-label="Filter by type"><option value="">All types</option></select>
+        <button type="button" class="btn ghost" id="cat-all">Add all shown</button>
+      </div>
+      <div class="catwrap">
+        <table>
+          <thead><tr><th class="n">#</th><th>Name</th><th>Type</th><th>Rarity</th><th>Code</th></tr></thead>
+          <tbody id="cat-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
   </div>
 </div>
 
@@ -463,9 +473,11 @@ function render() {
   else if (o.paper !== "fit" && blockHeight(o) > PAPERS[o.paper].h - 2 * PAGE_MARGIN) fatal = "The bar height is taller than the page.";
   else if (!encs.length) fatal = "Enter at least one code.";
 
-  const errs = [...bad]; if (fatal) errs.unshift(fatal);
-  $("err").hidden = !errs.length;
-  $("err").innerHTML = errs.length === 1 ? esc(errs[0]) : `${bad.length && !fatal ? "These lines are skipped:" : ""}<ul>${errs.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`;
+  // Skipped lines show under the codes box; problems that stop the sheet show on the Print tab.
+  $("err").hidden = !bad.length;
+  $("err").innerHTML = bad.length === 1 ? esc(bad[0]) : bad.length ? `These lines are skipped:<ul>${bad.map(e => `<li>${esc(e)}</li>`).join("")}</ul>` : "";
+  $("perr").hidden = !fatal && !bad.length;
+  $("perr").textContent = fatal || (bad.length ? `${bad.length} line${bad.length > 1 ? "s" : ""} in Make labels can't be encoded and won't print.` : "");
   for (const id of ["dl-pdf", "dl-svg", "copy"]) $(id).disabled = !!fatal;
 
   if (fatal) {
@@ -540,9 +552,11 @@ $("copy").addEventListener("click", () => {
 
 $("enc-b").addEventListener("click", () => { mode = "B"; render(); });
 $("enc-auto").addEventListener("click", () => { mode = "auto"; render(); });
-$("form").addEventListener("input", render);
-$("form").addEventListener("change", render);
-$("form").addEventListener("submit", e => e.preventDefault());
+for (const id of ["form", "pform"]) {
+  $(id).addEventListener("input", render);
+  $(id).addEventListener("change", render);
+  $(id).addEventListener("submit", e => e.preventDefault());
+}
 
 function saveState() {
   queueSync();
@@ -689,15 +703,16 @@ async function keepAwake(on) {
     if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
   } catch { wakeLock = null; }
 }
+const VIEWS = ["make", "print", "scan"];
 function showView(v) {
-  const scan = v === "scan";
-  $("view-scan").hidden = !scan; $("view-make").hidden = scan;
-  document.querySelector("header p").hidden = scan; // more room for barcodes on a phone
-  $("tab-scan").setAttribute("aria-selected", scan); $("tab-make").setAttribute("aria-selected", !scan);
-  keepAwake(scan);
+  if (!VIEWS.includes(v)) v = "make";
+  for (const k of VIEWS) { $("view-" + k).hidden = k !== v; $("tab-" + k).setAttribute("aria-selected", k === v); }
+  document.querySelector("header p").hidden = v === "scan"; // more room for barcodes on a phone
+  keepAwake(v === "scan");
   try { localStorage.setItem("c128view", v); } catch {}
 }
 $("tab-make").addEventListener("click", () => showView("make"));
+$("tab-print").addEventListener("click", () => showView("print"));
 $("tab-scan").addEventListener("click", () => { showView("scan"); window.scrollTo(0, 0); });
 $("scan-edit").addEventListener("click", () => showView("make"));
 $("scan-builds").addEventListener("click", e => {
@@ -850,9 +865,9 @@ function importShared() {
 
 initSync();
 if (!importShared()) {
-  let v = location.hash === "#scan" ? "scan" : null;
+  let v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : null;
   if (!v) { try { v = localStorage.getItem("c128view"); } catch {} }
-  showView(v === "scan" ? "scan" : "make");
+  showView(v);
 }
 
 render();
