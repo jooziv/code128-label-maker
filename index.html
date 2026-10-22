@@ -1,0 +1,787 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>Code 128 Label Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head><body>
+<style>
+/* Layout: settings column beside a print-sheet preview, with the per-code list underneath */
+:root {
+  --bg: #eef1f3;
+  --panel: #ffffff;
+  --fg: #1b2228;
+  --muted: #5d6b76;
+  --line: #d3dae0;
+  --accent: #1f5f8b;
+  --accent-ink: #ffffff;
+  --chip: #e4eaef;
+  --warn: #9a5b00;
+  --warn-bg: #fff3dc;
+  --err: #b3261e;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141a1f; --panel: #1d252c; --fg: #e3e9ee; --muted: #93a2ad; --line: #2f3a43;
+  --accent: #6fb0dc; --accent-ink: #0d1a24; --chip: #26313a; --warn: #f0b860; --warn-bg: #3a2e18; --err: #ff8a80;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141a1f; --panel: #1d252c; --fg: #e3e9ee; --muted: #93a2ad; --line: #2f3a43;
+  --accent: #6fb0dc; --accent-ink: #0d1a24; --chip: #26313a; --warn: #f0b860; --warn-bg: #3a2e18; --err: #ff8a80;
+  color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px; }
+header h1 { margin: 0; font-size: 1.5rem; font-weight: 600; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 66ch; }
+.grid { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 780px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
+label, .lbl { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.field { display: grid; gap: 6px; }
+input[type=number], select, textarea {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; width: 100%; box-sizing: border-box; min-width: 0; }
+textarea { font-family: var(--mono); font-size: 0.95rem; line-height: 1.55; resize: vertical; min-height: 9.5em; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 0.85rem; border: 0; padding: 8px 6px; background: transparent; color: var(--fg); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.hint { font-size: 0.82rem; color: var(--muted); margin: 0; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--fg); }
+.err { color: var(--err); font-size: 0.85rem; margin: 0; }
+.err ul { margin: 4px 0 0; padding-left: 18px; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+.sheethead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+.sheethead h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.stage { background: var(--chip); border-radius: 8px; padding: 20px 16px; display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; max-height: 640px; overflow: auto; }
+.page { display: grid; gap: 6px; justify-items: center; flex: 0 1 360px; min-width: 0; }
+.page svg { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.page.fit { flex-basis: 520px; }
+.page span { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { font: inherit; font-weight: 500; border-radius: 6px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.status { font-size: 0.85rem; color: var(--muted); align-self: center; }
+
+.specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.spec { display: grid; gap: 2px; }
+.spec b { font-family: var(--mono); font-weight: 500; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.warnbox { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem; margin: 0; }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th { text-align: left; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+td.v { font-family: var(--mono); }
+td.n, th.n { text-align: right; }
+tr.thin td.bar { color: var(--warn); font-weight: 500; }
+.view { display: grid; gap: 20px; min-width: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { font: inherit; font-weight: 500; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 10px 14px; margin-bottom: -1px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tabcount { font-size: 0.75rem; font-variant-numeric: tabular-nums; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+.tabcount:empty { display: none; }
+.scanhead { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.scanlist { display: grid; gap: 14px; justify-items: center; }
+.scancard { width: 100%; max-width: 560px; background: #fff; color: #111; border-radius: 10px; padding: 18px 14px 12px; box-sizing: border-box; display: grid; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.15); margin: 0; }
+.scancard svg { display: block; width: 100%; height: auto; }
+.scancard figcaption { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.scancard b { font-size: 1.05rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.scancard code { font-family: var(--mono); font-size: 0.9rem; color: #444; }
+.scancard .idx { font-size: 0.75rem; color: #666; font-variant-numeric: tabular-nums; }
+.buildsave { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.buildsave input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+.buildsave .btn { padding: 8px 12px; }
+.buildlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.buildchip { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--bg); }
+.buildchip button { font: inherit; font-size: 0.85rem; background: none; border: 0; color: var(--fg); cursor: pointer; padding: 4px 6px 4px 12px; }
+.buildchip button small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 2px; }
+.buildchip .bdel { padding: 4px 10px 4px 6px; color: var(--muted); }
+.buildchip .bdel.armed { color: var(--err); font-weight: 600; }
+.buildbar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding-block: 8px; }
+.buildbar button { font: inherit; font-weight: 500; white-space: nowrap; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 8px 14px; cursor: pointer; flex: 0 0 auto; }
+.buildbar button small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 2px; }
+.buildbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.buildbar button[aria-pressed="true"] small { color: inherit; opacity: .8; }
+.cathead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.cathead h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.catctl { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: 10px; align-items: center; }
+@media (max-width: 600px) { .catctl { grid-template-columns: minmax(0, 1fr); } }
+.catctl input[type=search] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; box-sizing: border-box; min-width: 0; }
+.catwrap { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.catwrap thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.codebtn { font-family: var(--mono); font-size: 0.88rem; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+.codebtn:hover { border-color: var(--accent); }
+.added { font-size: 0.72rem; font-weight: 600; color: var(--accent); margin-left: 6px; }
+.rar { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; border-radius: 999px; padding: 2px 8px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+.rar.UNIQUE { background: var(--warn-bg); color: var(--warn); }
+.rar.LEGENDARY { background: var(--accent); color: var(--accent-ink); }
+.filebtn { font-size: 0.85rem; color: var(--accent); cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.filebtn input { display: none; }
+.linkbtn { font: inherit; font-size: 0.8rem; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Code 128 Label Maker</h1>
+    <p>Enter one code per line. Barcodes fill the sheet from the top-left corner, left to right and then top to bottom, with a gap of half the bar height between rows. Dotted lines mark each column's container width. Download the sheet as a PDF and print it at 100% scale.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="View">
+    <button type="button" role="tab" id="tab-make" aria-selected="true" aria-controls="view-make">Make labels</button>
+    <button type="button" role="tab" id="tab-scan" aria-selected="false" aria-controls="view-scan">Scan view <span class="tabcount" id="scan-count"></span></button>
+  </div>
+
+  <div id="view-scan" class="view" role="tabpanel" aria-labelledby="tab-scan" hidden>
+    <div class="scanhead">
+      <p class="hint" id="scan-info"></p>
+      <button type="button" class="btn ghost" id="scan-edit">Edit codes</button>
+    </div>
+    <div class="buildbar" id="scan-builds" aria-label="Choose a build"></div>
+    <div class="scanlist" id="scan-list"></div>
+  </div>
+
+  <div id="view-make" class="view" role="tabpanel" aria-labelledby="tab-make">
+  <div class="grid">
+    <form class="panel" id="form" autocomplete="off">
+      <div class="field">
+        <label for="codes">Codes, one per line</label>
+        <textarea id="codes" rows="12" spellcheck="false">c01H1000
+c01H1001
+c01H1002
+c01H1003</textarea>
+        <p class="hint">The last three are example values. Replace them with your own. To print a name under a barcode, add it after a bar: <code>c01H1000 | Bin A-12</code>. Names always print. Pasting two columns from a spreadsheet works too.</p>
+        <button type="button" class="linkbtn" id="clear-codes">Clear all codes</button>
+        <div class="err" id="err" hidden></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Builds</span>
+        <p class="hint">Start a build with a heading line like <code># Tank</code>. Every code under it belongs to that build until the next heading. Scan view lets you switch between builds. Delete a heading and its lines to remove a build. Cards you click in the card list are added to the last build.</p>
+        <button type="button" class="linkbtn" id="add-build">+ Add a build heading</button>
+        <p class="hint" id="build-sync"></p>
+      </div>
+
+      <div class="field">
+        <span class="lbl" id="enc-lbl">Encoding</span>
+        <div class="seg" role="group" aria-labelledby="enc-lbl">
+          <button type="button" id="enc-b" aria-pressed="true">Set B only</button>
+          <button type="button" id="enc-auto" aria-pressed="false">Shortest</button>
+        </div>
+        <p class="hint" id="enc-hint"></p>
+      </div>
+
+      <hr>
+
+      <div class="pair">
+        <div class="field">
+          <label for="container">Container width (mm)</label>
+          <input type="number" id="container" value="61" min="1" step="0.5">
+        </div>
+        <div class="field">
+          <label for="barcode">Barcode width (mm)</label>
+          <input type="number" id="barcode" value="50" min="1" step="0.5">
+        </div>
+      </div>
+      <p class="hint">Barcode width runs from the first bar to the last bar. The leftover space becomes the blank margin on each side.</p>
+      <div class="pair">
+        <div class="field">
+          <label for="height">Bar height (mm)</label>
+          <input type="number" id="height" value="8" min="1" step="0.5">
+        </div>
+        <div class="field">
+          <label for="cols">Columns</label>
+          <select id="cols">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint">Barcodes fill each row left to right, then move down. Columns sit side by side, one container width each.</p>
+      <div class="pair">
+        <div class="field">
+          <label for="paper">Paper</label>
+          <select id="paper">
+            <option value="letter" selected>US Letter</option>
+            <option value="a4">A4</option>
+            <option value="fit">Fit to codes</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="check"><input type="checkbox" id="text"> Print the code under barcodes that have no name</label>
+      <label class="check"><input type="checkbox" id="guides" checked> Dotted outline around the barcodes, at the container width</label>
+    </form>
+
+    <section class="panel" aria-label="Print sheet">
+      <div class="sheethead">
+        <h2>Print sheet</h2>
+        <span class="hint" id="sheetinfo"></span>
+      </div>
+      <div class="stage" id="stage"></div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="dl-pdf">Download PDF</button>
+        <button type="button" class="btn ghost" id="dl-svg">Download SVG</button>
+        <button type="button" class="btn ghost" id="copy">Copy SVG code</button>
+        <span class="status" id="status" role="status"></span>
+      </div>
+      <p class="hint">The SVG holds the whole stack on one canvas, sized to the codes. Use the PDF to print onto paper.</p>
+      <div class="specs" id="specs"></div>
+      <p class="warnbox" id="warn" hidden></p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th class="n">#</th><th>Code</th><th>Name</th><th class="n">Symbols</th><th class="n">Check</th><th class="n">Thinnest bar</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="cat-title">
+    <div class="cathead">
+      <h2 id="cat-title">Card list</h2>
+      <span class="hint" id="cat-src">Loading cards.json…</span>
+      <label class="filebtn">Load a different JSON file<input type="file" id="cat-file" accept=".json,application/json"></label>
+    </div>
+    <p class="hint">Click a code to add it, with its name, to the codes box. Click again to add another copy.</p>
+    <div class="catctl">
+      <input type="search" id="cat-q" placeholder="Search name, number or code" aria-label="Search cards">
+      <select id="cat-type" aria-label="Filter by type"><option value="">All types</option></select>
+      <button type="button" class="btn ghost" id="cat-all">Add all shown</button>
+    </div>
+    <div class="catwrap">
+      <table>
+        <thead><tr><th class="n">#</th><th>Name</th><th>Type</th><th>Rarity</th><th>Code</th></tr></thead>
+        <tbody id="cat-rows"></tbody>
+      </table>
+    </div>
+  </section>
+  </div>
+</div>
+
+<script>
+const PATTERNS = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131","211412","211214","211232","2331112"];
+const START_B = 104, START_C = 105, CODE_B = 100, CODE_C = 99, STOP = 106;
+const QUIET = 10;
+const PAPERS = { letter: { w: 215.9, h: 279.4, name: "US Letter" }, a4: { w: 210, h: 297, name: "A4" } };
+const PAGE_MARGIN = 10; // mm, top/bottom and minimum sides
+
+function isDigit(c) { return c >= "0" && c <= "9"; }
+function digitRun(s, i) { let n = 0; while (i + n < s.length && isDigit(s[i + n])) n++; return n; }
+
+function encode(s, mode) {
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    if (c < 32 || c > 126) throw new Error(`"${ch}" can't be encoded`);
+  }
+  const out = [];
+  if (mode === "B") {
+    out.push({ v: START_B, label: "Start B", kind: "ctl" });
+    for (const ch of s) out.push({ v: ch.charCodeAt(0) - 32, label: ch, kind: "B" });
+    return out;
+  }
+  let i = 0, set;
+  const first = digitRun(s, 0);
+  if ((first === s.length && first >= 2 && first % 2 === 0) || first >= 4) {
+    set = "C"; out.push({ v: START_C, label: "Start C", kind: "ctl" });
+  } else { set = "B"; out.push({ v: START_B, label: "Start B", kind: "ctl" }); }
+  while (i < s.length) {
+    if (set === "C") {
+      if (digitRun(s, i) >= 2) { const p = s.substr(i, 2); out.push({ v: +p, label: p, kind: "C" }); i += 2; continue; }
+      set = "B"; out.push({ v: CODE_B, label: "Code B", kind: "ctl" }); continue;
+    }
+    const run = digitRun(s, i);
+    const atEnd = i + run === s.length;
+    if (run >= 4 && (atEnd || run >= 6)) {
+      if (run % 2) { out.push({ v: s.charCodeAt(i) - 32, label: s[i], kind: "B" }); i++; }
+      set = "C"; out.push({ v: CODE_C, label: "Code C", kind: "ctl" }); continue;
+    }
+    out.push({ v: s.charCodeAt(i) - 32, label: s[i], kind: "B" }); i++;
+  }
+  return out;
+}
+
+function build(value, mode) {
+  const syms = encode(value, mode);
+  let sum = syms[0].v;
+  syms.forEach((x, k) => { if (k) sum += x.v * k; });
+  const check = sum % 103;
+  const all = [...syms.map(x => x.v), check, STOP];
+  const widths = all.flatMap(v => PATTERNS[v].split("").map(Number));
+  return { value, syms, check, widths, modules: widths.reduce((a, b) => a + b, 0) };
+}
+
+// Geometry of one label block, in mm, relative to the block's top-left corner.
+function blockShapes(enc, o) {
+  const x = o.barcode / enc.modules;
+  const left = (o.container - o.barcode) / 2;
+  const bars = [];
+  let pos = 0;
+  enc.widths.forEach((w, k) => { if (k % 2 === 0) bars.push([left + pos * x, w * x]); pos += w; });
+  return { bars, x };
+}
+function textMetrics(o) {
+  const size = o.height * 0.28 < 2.2 ? 2.2 : o.height * 0.28;
+  return { size, gap: 1, total: o.text ? 1 + size : 0 };
+}
+function blockHeight(o) { return o.height + textMetrics(o).total; }
+function rowGap(o) { return o.height / 2; } // space between rows: half the bar height
+// Shrink a long name so it fits inside the container (Courier glyphs are 0.6 em wide).
+function nameSize(name, o) { const base = textMetrics(o).size; return Math.min(base, (o.container * 0.96) / (Math.max(1, name.length) * 0.6)); }
+// Dotted outline around everything on a page (inset by half the stroke), plus a dotted divider between columns.
+function outlineBox(pg, o) {
+  const h = pg.rows * blockHeight(o) + (pg.rows - 1) * rowGap(o) + (o.text ? 1 : 0); // room below the last name
+  const dividers = [];
+  for (let c = 1; c < pg.cols; c++) dividers.push(pg.ox + c * o.container);
+  return { x: pg.ox + 0.1, y: pg.oy + 0.1, w: pg.cols * o.container - 0.2, h: h - 0.2, dividers, top: pg.oy, bottom: pg.oy + h, left: pg.ox, right: pg.ox + pg.cols * o.container };
+}
+
+// Split codes into pages, filling each row left to right, then rows top to bottom.
+// Columns sit edge to edge, one container width apart. Each page: {w, h, ox, oy, cols, rows, items: [{enc, x0, y0}]}
+function layout(encs, o) {
+  const bh = blockHeight(o), gap = rowGap(o), C = Math.max(1, o.cols || 1);
+  const place = (list, ox, oy) => list.map((enc, k) => ({ enc, x0: ox + (k % C) * o.container, y0: oy + Math.floor(k / C) * (bh + gap) }));
+  const dims = list => ({ cols: Math.min(C, list.length), rows: Math.ceil(list.length / C) });
+  if (o.paper === "fit") {
+    const d = dims(encs);
+    return [{ w: d.cols * o.container, h: d.rows * bh + (d.rows - 1) * gap + (o.text ? 1 : 0), ox: 0, oy: 0, ...d, items: place(encs, 0, 0) }];
+  }
+  const P = PAPERS[o.paper];
+  const rowsPer = Math.max(1, Math.floor((P.h - 2 * PAGE_MARGIN + gap) / (bh + gap)));
+  const per = rowsPer * C;
+  const pages = [];
+  for (let i = 0; i < encs.length; i += per) {
+    const list = encs.slice(i, i + per);
+    pages.push({ w: P.w, h: P.h, per, ox: PAGE_MARGIN, oy: PAGE_MARGIN, ...dims(list), items: place(list, PAGE_MARGIN, PAGE_MARGIN) });
+  }
+  return pages;
+}
+
+const f = n => +n.toFixed(4);
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function pageSvg(pg, o, forFile) {
+  const tm = textMetrics(o), bh = blockHeight(o);
+  let body = "";
+  for (const it of pg.items) {
+    const { bars } = blockShapes(it.enc, o);
+    body += `<g fill="#000">` + bars.map(([bx, bw]) => `<rect x="${f(it.x0 + bx)}" y="${f(it.y0)}" width="${f(bw)}" height="${f(o.height)}"/>`).join("") + `</g>`;
+    if (o.text && it.enc.showName) body += `<text x="${f(it.x0 + o.container / 2)}" y="${f(it.y0 + o.height + tm.gap + tm.size * 0.8)}" font-family="Courier, 'Courier New', monospace" font-size="${f(nameSize(it.enc.name, o))}" text-anchor="middle" fill="#000">${esc(it.enc.name)}</text>`;
+  }
+  if (o.guides && pg.items.length) { const b = outlineBox(pg, o); body += `<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(b.w)}" height="${f(b.h)}" fill="none" stroke="#6b747b" stroke-width="0.2" stroke-dasharray="0.6 0.6" shape-rendering="geometricPrecision"/>` + b.dividers.map(x => `<line x1="${f(x)}" y1="${f(b.top)}" x2="${f(x)}" y2="${f(b.bottom)}" stroke="#6b747b" stroke-width="0.2" stroke-dasharray="0.6 0.6" shape-rendering="geometricPrecision"/>`).join(""); }
+  const size = forFile ? ` width="${f(pg.w)}mm" height="${f(pg.h)}mm"` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg"${size} viewBox="0 0 ${f(pg.w)} ${f(pg.h)}" shape-rendering="crispEdges">` +
+    `<rect width="${f(pg.w)}" height="${f(pg.h)}" fill="#fff"/>${body}</svg>`;
+}
+
+// Minimal vector PDF: rectangles for bars, built-in Courier for text.
+function makePdf(pages, o) {
+  const PT = 72 / 25.4, tm = textMetrics(o), bh = blockHeight(o);
+  const n = v => (+v.toFixed(3)).toString();
+  const objs = [];
+  const add = s => { objs.push(s); return objs.length; };
+  const catalog = add(null), pagesObj = add(null), font = add("<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>");
+  const kids = [];
+  for (const pg of pages) {
+    const H = pg.h * PT;
+    let c = "";
+    for (const it of pg.items) {
+      c += "0 0 0 rg\n";
+      for (const [bx, bw] of blockShapes(it.enc, o).bars)
+        c += `${n((it.x0 + bx) * PT)} ${n(H - (it.y0 + o.height) * PT)} ${n(bw * PT)} ${n(o.height * PT)} re f\n`;
+      if (o.text && it.enc.showName) {
+        const name = it.enc.name.replace(/[^\x20-\x7e]/g, "?");
+        const size = nameSize(name, o) * PT, tw = name.length * 0.6 * size;
+        const tx = (it.x0 + o.container / 2) * PT - tw / 2, ty = H - (it.y0 + o.height + tm.gap + tm.size * 0.8) * PT;
+        const s = name.replace(/[\\()]/g, m => "\\" + m);
+        c += `BT /F1 ${n(size)} Tf ${n(tx)} ${n(ty)} Td (${s}) Tj ET\n`;
+      }
+    }
+    if (o.guides && pg.items.length) { const b = outlineBox(pg, o); c += `q 0.42 0.45 0.48 RG 0.567 w [1.7 1.7] 0 d ${n(b.x * PT)} ${n(H - (b.y + b.h) * PT)} ${n(b.w * PT)} ${n(b.h * PT)} re S ` + b.dividers.map(x => `${n(x * PT)} ${n(H - b.top * PT)} m ${n(x * PT)} ${n(H - b.bottom * PT)} l S `).join("") + `Q\n`; }
+    const content = add(`<< /Length ${c.length} >>\nstream\n${c}endstream`);
+    kids.push(add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${n(pg.w * PT)} ${n(H)}] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`));
+  }
+  objs[catalog - 1] = `<< /Type /Catalog /Pages ${pagesObj} 0 R >>`;
+  objs[pagesObj - 1] = `<< /Type /Pages /Kids [${kids.map(k => k + " 0 R").join(" ")}] /Count ${kids.length} >>`;
+  let out = "%PDF-1.4\n";
+  const offs = [];
+  objs.forEach((s, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${s}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(x => String(x).padStart(10, "0") + " 00000 n \n").join("");
+  out += `trailer\n<< /Size ${objs.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return out;
+}
+
+const $ = id => document.getElementById(id);
+let mode = "B", current = null;
+
+function readOpts() {
+  return {
+    container: parseFloat($("container").value), barcode: parseFloat($("barcode").value),
+    height: parseFloat($("height").value), paper: $("paper").value, cols: parseInt($("cols").value, 10) || 1,
+    text: $("text").checked, guides: $("guides").checked
+  };
+}
+
+function render() {
+  const o = readOpts();
+  $("enc-b").setAttribute("aria-pressed", mode === "B");
+  $("enc-auto").setAttribute("aria-pressed", mode === "auto");
+  $("enc-hint").textContent = mode === "B"
+    ? "One symbol per character, the way your existing labels are printed."
+    : "Packs runs of digits two per symbol for a shorter barcode. Scans the same.";
+
+  const { encs, bad } = parseCodes($("codes").value);
+
+  // A name typed after "|" always prints; the checkbox adds the code under the rest.
+  encs.forEach(e => { e.showName = o.text || e.custom; });
+  o.text = o.text || encs.some(e => e.custom);
+
+  renderScan();
+
+  let fatal = "";
+  if (!(o.container > 0) || !(o.barcode > 0) || !(o.height > 0)) fatal = "Widths and height must be greater than zero.";
+  else if (o.barcode > o.container) fatal = `Barcode width (${o.barcode} mm) can't be wider than the container (${o.container} mm).`;
+  else if (o.paper !== "fit" && o.cols * o.container > PAPERS[o.paper].w - 2 * PAGE_MARGIN) fatal = `${o.cols} column${o.cols > 1 ? "s" : ""} of ${o.container} mm (${f(o.cols * o.container)} mm) don't fit across ${PAPERS[o.paper].name} paper, which has ${f(PAPERS[o.paper].w - 2 * PAGE_MARGIN)} mm to work with. Use fewer columns, a narrower container, or Fit to codes.`;
+  else if (o.paper !== "fit" && blockHeight(o) > PAPERS[o.paper].h - 2 * PAGE_MARGIN) fatal = "The bar height is taller than the page.";
+  else if (!encs.length) fatal = "Enter at least one code.";
+
+  const errs = [...bad]; if (fatal) errs.unshift(fatal);
+  $("err").hidden = !errs.length;
+  $("err").innerHTML = errs.length === 1 ? esc(errs[0]) : `${bad.length && !fatal ? "These lines are skipped:" : ""}<ul>${errs.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`;
+  for (const id of ["dl-pdf", "dl-svg", "copy"]) $(id).disabled = !!fatal;
+
+  if (fatal) {
+    current = null; $("stage").innerHTML = ""; $("specs").innerHTML = ""; $("rows").innerHTML = ""; $("warn").hidden = true; $("sheetinfo").textContent = "";
+    saveState(); return;
+  }
+
+  const pages = layout(encs, o);
+  const fitPage = layout(encs, { ...o, paper: "fit" })[0];
+  current = { encs, pages, o, svg: pageSvg(fitPage, o, true) };
+
+  $("stage").innerHTML = pages.map((pg, i) =>
+    `<div class="page ${o.paper === "fit" ? "fit" : ""}">${pageSvg(pg, o, false)}<span>${o.paper === "fit" ? `${f(pg.w)} × ${f(pg.h)} mm` : `Page ${i + 1} of ${pages.length}`}</span></div>`).join("");
+  $("sheetinfo").textContent = o.paper === "fit"
+    ? `${encs.length} code${encs.length > 1 ? "s" : ""} on one ${f(fitPage.w)} × ${f(fitPage.h)} mm sheet`
+    : `${encs.length} code${encs.length > 1 ? "s" : ""} · ${pages[0].per} per page · ${PAPERS[o.paper].name}`;
+
+  const margin = (o.container - o.barcode) / 2;
+  const minX = Math.min(...encs.map(e => o.barcode / e.modules));
+  const minMargin = QUIET * Math.max(...encs.map(e => o.barcode / e.modules));
+  const specs = [
+    ["Codes", `${encs.length}`],
+    ["Pages", `${pages.length}`],
+    ["Row gap", `${f(rowGap(o))} mm`],
+    ["Side margins", `${margin.toFixed(2)} mm`],
+    ["Thinnest bar", `${minX.toFixed(3)} mm`]
+  ];
+  $("specs").innerHTML = specs.map(([k, v]) => `<div class="spec"><span class="lbl">${k}</span><b>${v}</b></div>`).join("");
+
+  const msgs = [];
+  if (minX < 0.19) msgs.push(`The thinnest bars are ${minX.toFixed(3)} mm, too thin for most printers and scanners. Widen the barcode, shorten the longest code, or switch to Shortest encoding. Aim for 0.25 mm or more.`);
+  else if (minX < 0.25) msgs.push(`The thinnest bars are ${minX.toFixed(3)} mm. That works on good printers, but 0.25 mm or more scans more reliably.`);
+  if (margin < minMargin - 1e-9)
+    msgs.push(`Side margins are ${margin.toFixed(2)} mm. Scanners need about ${minMargin.toFixed(2)} mm of blank space on each side, so widen the container to at least ${(o.barcode + 2 * minMargin).toFixed(1)} mm.`);
+  if (o.height < 5) msgs.push("Bars under 5 mm tall can be hard to scan by hand. Consider a taller barcode.");
+  $("warn").hidden = !msgs.length; $("warn").textContent = msgs.join(" ");
+
+  $("rows").innerHTML = encs.map((e, i) => {
+    const x = o.barcode / e.modules;
+    return `<tr class="${x < 0.25 ? "thin" : ""}"><td class="n">${i + 1}</td><td class="v">${esc(e.value)}</td><td>${esc(e.name)}</td><td class="n">${e.syms.length + 2}</td><td class="n">${e.check}</td><td class="n bar">${x.toFixed(3)} mm</td></tr>`;
+  }).join("");
+  saveState();
+}
+
+function status(msg) { $("status").textContent = msg; }
+function baseName() {
+  if (!current) return "barcodes";
+  const e = current.encs;
+  const first = e[0].value.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 60) || "barcodes";
+  return e.length > 1 ? `${first}_and_${e.length - 1}_more` : first;
+}
+function save(filename, data) {
+  const type = filename.endsWith(".pdf") ? "application/pdf" : "image/svg+xml";
+  const bytes = type === "application/pdf" ? Uint8Array.from(data, c => c.charCodeAt(0) & 255) : data;
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = document.createElement("a"); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  status("Saved " + filename);
+}
+$("dl-pdf").addEventListener("click", () => { if (current) save(`${baseName()}_code128.pdf`, makePdf(current.pages, current.o)); });
+$("dl-svg").addEventListener("click", () => { if (current) save(`${baseName()}_code128.svg`, `<?xml version="1.0" encoding="UTF-8"?>\n${current.svg}\n`); });
+$("copy").addEventListener("click", () => {
+  if (!current) return;
+  const text = current.svg;
+  navigator.clipboard.writeText(text).then(() => status("SVG code copied."), () => {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); status("SVG code copied."); } catch { status("Select and copy the code manually."); }
+    ta.remove();
+  });
+});
+
+$("enc-b").addEventListener("click", () => { mode = "B"; render(); });
+$("enc-auto").addEventListener("click", () => { mode = "auto"; render(); });
+$("form").addEventListener("input", render);
+$("form").addEventListener("change", render);
+$("form").addEventListener("submit", e => e.preventDefault());
+
+function saveState() {
+  queueSync();
+  try { localStorage.setItem("c128v4", JSON.stringify({ mode, codes: $("codes").value, ...readOpts() })); } catch {}
+}
+try {
+  const v4 = localStorage.getItem("c128v4");
+  const s = JSON.parse(v4 || localStorage.getItem("c128v3") || "null");
+  if (s && !v4) s.guides = true;
+  if (s) {
+    mode = s.mode === "auto" ? "auto" : "B";
+    if (typeof s.codes === "string") $("codes").value = s.codes;
+    for (const k of ["container", "barcode", "height"]) if (s[k] > 0) $(k).value = s[k];
+    if (s.paper in PAPERS || s.paper === "fit") $("paper").value = s.paper;
+    if ([1, 2, 3].includes(s.cols)) $("cols").value = String(s.cols);
+    $("text").checked = !!s.text; $("guides").checked = !!s.guides;
+  }
+} catch {}
+
+// ---- Scan view: every code full width, stacked for a phone screen ----
+function scanSvg(enc) {
+  const q = QUIET, W = enc.modules + 2 * q, H = Math.round(W * 0.3);
+  let pos = q, r = "";
+  enc.widths.forEach((w, k) => { if (k % 2 === 0) r += `<rect x="${pos}" y="0" width="${w}" height="${H}"/>`; pos += w; });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges" role="img" aria-label="Barcode ${esc(enc.value)}"><rect width="${W}" height="${H}" fill="#fff"/><g fill="#000">${r}</g></svg>`;
+}
+// Parse "code | name" lines into encoded barcodes. Lines starting with # are build headings.
+function parseCodes(text) {
+  const encs = [], bad = [];
+  String(text || "").split(/\r?\n/).forEach((line, i) => {
+    if (/^\s*#/.test(line)) return;
+    const m = line.match(/^([^|\t]*)[|\t](.*)$/);
+    const s = (m ? m[1] : line).trim(), name = m ? m[2].trim() : "";
+    if (!s) { if (name) bad.push(`Line ${i + 1}: there's a name but no code`); return; }
+    try { const e = build(s, mode); e.name = name || s; e.custom = !!name; encs.push(e); } catch (e) { bad.push(`Line ${i + 1}: ${e.message}. Use letters, digits and standard punctuation only.`); }
+  });
+  return { encs, bad };
+}
+// Split the codes box into builds: "# Name" starts a build; lines above the first heading are "Other".
+function parseBuilds(text) {
+  const out = []; let cur = null;
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const h = line.match(/^\s*#\s*(.*?)\s*$/);
+    if (h) { cur = { name: h[1] || "Untitled", lines: [] }; out.push(cur); continue; }
+    if (!cur) { if (!line.trim()) continue; cur = { name: "Other", lines: [], loose: true }; out.push(cur); }
+    cur.lines.push(line);
+  }
+  return out.map(b => ({ ...b, text: b.lines.join("\n") }));
+}
+
+// ---- Sync the codes box to the viewer's account (falls back to this browser) ----
+const Sync = { ref: null, lastSent: null, timer: null, writing: false, dirty: false };
+let scanSel = "";
+try { scanSel = localStorage.getItem("c128scanBuild") || ""; } catch {}
+function syncNote(t) { const el = $("build-sync"); if (el) el.textContent = t; }
+function queueSync() {
+  if (!Sync.ref || $("codes").value === Sync.lastSent) return;
+  Sync.dirty = true; clearTimeout(Sync.timer); Sync.timer = setTimeout(flushSync, 800);
+}
+async function flushSync() {
+  Sync.timer = null;
+  if (!Sync.ref) return;
+  if (Sync.writing) { Sync.timer = setTimeout(flushSync, 400); return; }
+  const text = $("codes").value;
+  if (text === Sync.lastSent) { Sync.dirty = false; return; }
+  Sync.writing = true;
+  try { await Sync.ref.set({ text, updated: Date.now() }); Sync.lastSent = text; syncNote("Synced to your account, so your phone sees the same builds."); }
+  catch (e) { syncNote(e && e.code === "quota_exceeded" ? "Your account storage for this page is full. Changes are kept in this browser." : "Couldn't sync just now. Changes are kept in this browser and will sync on your next edit."); }
+  Sync.writing = false;
+  Sync.dirty = $("codes").value !== Sync.lastSent;
+  if (Sync.dirty) queueSync();
+}
+function applyRemote(text) {
+  if (Sync.dirty || document.activeElement === $("codes") || text === $("codes").value) { if (text === $("codes").value) Sync.lastSent = text; return; }
+  $("codes").value = text; Sync.lastSent = text;
+  render(); renderCatalog();
+}
+// Builds saved by the previous version (one document each, or in this browser) become sections.
+function legacyText(list) {
+  return list.map(b => `# ${String(b.name || "Untitled")}\n${String(b.lines || "").trim()}`).join("\n\n");
+}
+async function initSync() {
+  syncNote("Saved in this browser.");
+  const use = n => (window.claude && window.claude.use) ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
+  const [db, user] = await Promise.all([use("db"), use("user")]);
+  let uid = null;
+  try { uid = user ? await user.id() : null; } catch {}
+  let localOld = [];
+  try { localOld = JSON.parse(localStorage.getItem("c128builds") || "[]"); if (!Array.isArray(localOld)) localOld = []; } catch {}
+  if (!db || !uid) {
+    if (localOld.length) { appendText(legacyText(localOld)); try { localStorage.removeItem("c128builds"); } catch {} }
+    syncNote("Saved in this browser.");
+    return;
+  }
+  let col, ref;
+  try { col = db.collection("data/users/" + uid); ref = col.doc("codes"); } catch { return; }
+  let first = true;
+  ref.onSnapshot(async snap => {
+    if (first) {
+      first = false;
+      let base = snap.exists ? String((snap.data() || {}).text || "") : $("codes").value;
+      let old = [];
+      try { old = (await col.get()).docs.filter(d => d.id.startsWith("b-") && d.exists).map(d => ({ id: d.id, ...(d.data() || {}) })); } catch {}
+      const have = new Set(parseBuilds(base).map(b => b.name.toLowerCase()));
+      const extra = [...old, ...localOld].filter(b => !have.has(String(b.name || "").toLowerCase()) && have.add(String(b.name || "").toLowerCase()));
+      if (extra.length) base = (base.trim() ? base.replace(/\s+$/, "") + "\n\n" : "") + legacyText(extra);
+      $("codes").value = base; render(); renderCatalog();
+      Sync.ref = ref;
+      if (!snap.exists || extra.length) { Sync.lastSent = null; await flushSync(); } else Sync.lastSent = base;
+      for (const b of old) { try { await col.doc(b.id).delete(); } catch {} }
+      try { localStorage.removeItem("c128builds"); } catch {}
+      syncNote("Synced to your account, so your phone sees the same builds.");
+      return;
+    }
+    if (snap.exists && !snap.metadata.hasPendingWrites) applyRemote(String((snap.data() || {}).text || ""));
+  }, () => { Sync.ref = null; syncNote("Sync stopped. Changes are kept in this browser."); });
+}
+function appendText(t) {
+  const ta = $("codes"); ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n\n" : "") + t;
+  render(); renderCatalog();
+}
+
+function renderScan() {
+  const builds = parseBuilds($("codes").value).map(b => ({ ...b, n: parseCodes(b.text).encs.length }));
+  const sel = builds.find(b => b.name === scanSel) || null;
+  const source = sel ? sel.text : $("codes").value;
+  const { encs, bad } = parseCodes(source);
+  const total = parseCodes($("codes").value).encs.length;
+  const multi = builds.length > 1 || (builds.length === 1 && !builds[0].loose);
+  $("scan-builds").hidden = !multi;
+  $("scan-builds").innerHTML = [`<button type="button" data-name="" aria-pressed="${!sel}">All <small>${total}</small></button>`]
+    .concat(builds.map(b => `<button type="button" data-name="${esc(b.name)}" aria-pressed="${sel && sel.name === b.name ? "true" : "false"}">${esc(b.name)} <small>${b.n}</small></button>`)).join("");
+  $("scan-count").textContent = encs.length || "";
+  $("scan-info").textContent = encs.length
+    ? `${sel ? sel.name + ": " : ""}${encs.length} barcode${encs.length > 1 ? "s" : ""}. Turn your screen brightness up for scanning.${bad.length ? ` ${bad.length} line${bad.length > 1 ? "s" : ""} skipped because they can't be encoded.` : ""}`
+    : (sel ? "This build has no codes." : "No codes yet. Add some in Make labels, or click codes in the card list.");
+  $("scan-list").innerHTML = encs.map((e, i) =>
+    `<figure class="scancard">${scanSvg(e)}<figcaption><b>${esc(e.name)}</b><code>${esc(e.value)}</code></figcaption><span class="idx">${i + 1} of ${encs.length}</span></figure>`).join("");
+}
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+function showView(v) {
+  const scan = v === "scan";
+  $("view-scan").hidden = !scan; $("view-make").hidden = scan;
+  document.querySelector("header p").hidden = scan; // more room for barcodes on a phone
+  $("tab-scan").setAttribute("aria-selected", scan); $("tab-make").setAttribute("aria-selected", !scan);
+  keepAwake(scan);
+  try { localStorage.setItem("c128view", v); } catch {}
+}
+$("tab-make").addEventListener("click", () => showView("make"));
+$("tab-scan").addEventListener("click", () => { showView("scan"); window.scrollTo(0, 0); });
+$("scan-edit").addEventListener("click", () => showView("make"));
+$("scan-builds").addEventListener("click", e => {
+  const b = e.target.closest("button[data-name]"); if (!b) return;
+  scanSel = b.dataset.name;
+  try { localStorage.setItem("c128scanBuild", scanSel); } catch {}
+  renderScan(); window.scrollTo(0, 0);
+});
+$("add-build").addEventListener("click", () => {
+  const ta = $("codes");
+  let n = 1; const names = new Set(parseBuilds(ta.value).map(b => b.name.toLowerCase()));
+  while (names.has(`build ${n}`)) n++;
+  const head = `# Build ${n}`;
+  ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n\n" : "") + head + "\n";
+  render(); renderCatalog();
+  ta.focus(); const s = ta.value.length - head.length - 1 + 2; ta.setSelectionRange(s, s + head.length - 2);
+});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !$("view-scan").hidden) keepAwake(true); });
+
+// ---- Card list (reads a JSON file of {number, name, type, rarity, code}) ----
+let cards = [];
+function normalizeCards(data) {
+  const list = Array.isArray(data) ? data : (data && Array.isArray(data.cards) ? data.cards : null);
+  if (!list) throw new Error("Expected a list of cards, or an object with a \"cards\" list.");
+  return list.filter(c => c && typeof c.code === "string" && c.code.trim()).map(c => ({
+    number: c.number ?? "", name: String(c.name ?? "").trim(), type: String(c.type ?? "").trim(),
+    rarity: c.rarity ? String(c.rarity) : "", code: c.code.trim()
+  }));
+}
+function setCards(data, label) {
+  cards = normalizeCards(data);
+  const types = [...new Set(cards.map(c => c.type).filter(Boolean))];
+  $("cat-type").innerHTML = `<option value="">All types</option>` + types.map(t => `<option>${esc(t)}</option>`).join("");
+  $("cat-src").textContent = `${cards.length} cards from ${label}`;
+  renderCatalog();
+}
+function codeCounts() {
+  const m = {};
+  for (const line of $("codes").value.split(/\r?\n/)) {
+    const code = line.split(/[|\t]/)[0].trim(); if (code) m[code] = (m[code] || 0) + 1;
+  }
+  return m;
+}
+function shownCards() {
+  const q = $("cat-q").value.trim().toLowerCase(), t = $("cat-type").value;
+  return cards.filter(c => (!t || c.type === t) &&
+    (!q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || String(c.number) === q));
+}
+function renderCatalog() {
+  const counts = codeCounts();
+  const list = shownCards();
+  $("cat-all").disabled = !list.length;
+  $("cat-rows").innerHTML = list.length ? list.map(c => {
+    const i = cards.indexOf(c), k = counts[c.code];
+    return `<tr><td class="n">${esc(String(c.number))}</td><td>${esc(c.name)}</td><td>${esc(c.type)}</td>` +
+      `<td>${c.rarity ? `<span class="rar ${esc(c.rarity.replace(/[^A-Z]/g, ""))}">${esc(c.rarity)}</span>` : ""}</td>` +
+      `<td><button type="button" class="codebtn" data-i="${i}" title="Add ${esc(c.code)} to the codes box">${esc(c.code)}</button>${k ? `<span class="added">Added${k > 1 ? " ×" + k : ""}</span>` : ""}</td></tr>`;
+  }).join("") : `<tr><td colspan="5" class="hint">${cards.length ? "No cards match." : "No cards loaded yet. Load a JSON file to see them here."}</td></tr>`;
+}
+function addCards(list) {
+  const ta = $("codes");
+  let v = ta.value.replace(/\s+$/, "");
+  const lines = list.map(c => c.name ? `${c.code} | ${c.name}` : c.code);
+  ta.value = (v ? v + "\n" : "") + lines.join("\n");
+  render(); renderCatalog();
+}
+$("cat-rows").addEventListener("click", e => {
+  const b = e.target.closest(".codebtn"); if (!b) return;
+  addCards([cards[+b.dataset.i]]);
+});
+$("cat-all").addEventListener("click", () => addCards(shownCards()));
+$("cat-q").addEventListener("input", renderCatalog);
+$("cat-type").addEventListener("change", renderCatalog);
+$("codes").addEventListener("input", renderCatalog);
+$("clear-codes").addEventListener("click", () => { $("codes").value = ""; render(); renderCatalog(); $("codes").focus(); });
+$("cat-file").addEventListener("change", async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try { setCards(JSON.parse(await file.text()), file.name); }
+  catch (err) { $("cat-src").textContent = `Couldn't read ${file.name}: ${err.message}`; }
+  e.target.value = "";
+});
+fetch("cards.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d => setCards(d, "cards.json"))
+  .catch(() => { $("cat-src").textContent = "No cards.json found next to this page."; renderCatalog(); });
+
+initSync();
+{
+  let v = location.hash === "#scan" ? "scan" : null;
+  if (!v) { try { v = localStorage.getItem("c128view"); } catch {} }
+  showView(v === "scan" ? "scan" : "make");
+}
+
+render();
+</script>
+
+</body></html>
