@@ -560,6 +560,7 @@ for (const id of ["form", "pform"]) {
 
 function saveState() {
   queueSync();
+  queueUrl();
   try { localStorage.setItem("c128v4", JSON.stringify({ mode, codes: $("codes").value, ...readOpts() })); } catch {}
 }
 try {
@@ -832,14 +833,25 @@ $("scan-share").addEventListener("click", () => {
   if (!text.trim()) { $("share-note").textContent = "There are no codes to share yet."; return; }
   copyText(shareUrl(text), $("share-note"));
 });
+// Compare code lists ignoring line endings, trailing spaces and blank lines.
+function normCodes(t) { return String(t || "").split(/\r?\n/).map(l => l.trimEnd()).filter(l => l.trim()).join("\n"); }
+function sameCodes(a, b) { return normCodes(a) === normCodes(b); }
+// Keep ?b= in the address bar in step with the codes box, so the current URL is always a share link.
+let urlTimer = null;
+function queueUrl() { clearTimeout(urlTimer); urlTimer = setTimeout(syncUrl, 300); }
+function syncUrl() {
+  const text = $("codes").value.trim();
+  const u = new URL(location.href);
+  if (text) u.searchParams.set("b", toB64Url(text)); else u.searchParams.delete("b");
+  if (u.toString() !== location.href) { try { history.replaceState(null, "", u.toString()); } catch {} }
+}
 // Opening a share link adds its builds to this browser's list (never replaces it), then shows them in Scan view.
 function importShared() {
   const p = new URLSearchParams(location.search).get("b");
   if (p === null) return false;
-  const clean = new URL(location.href); clean.searchParams.delete("b");
-  history.replaceState(null, "", clean.toString());
   let text;
   try { text = fromB64Url(p); } catch { $("share-note").textContent = "That share link is damaged, so nothing was added."; return true; }
+  if (sameCodes(text, $("codes").value)) return false; // the link matches what's already here (e.g. a refresh): nothing to add
   const incoming = parseBuilds(text);
   if (!incoming.length) return true;
   if ($("codes").value.trim() === $("codes").defaultValue.trim()) $("codes").value = ""; // first visit: drop the example codes
