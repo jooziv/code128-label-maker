@@ -143,8 +143,12 @@ tr.thin td.bar { color: var(--warn); font-weight: 500; }
   <div id="view-scan" class="view" role="tabpanel" aria-labelledby="tab-scan" hidden>
     <div class="scanhead">
       <p class="hint" id="scan-info"></p>
-      <button type="button" class="btn ghost" id="scan-edit">Edit codes</button>
+      <div class="actions">
+        <button type="button" class="btn ghost" id="scan-share">Copy share link</button>
+        <button type="button" class="btn ghost" id="scan-edit">Edit codes</button>
+      </div>
     </div>
+    <p class="hint" id="share-note" role="status"></p>
     <div class="buildbar" id="scan-builds" aria-label="Choose a build"></div>
     <div class="scanlist" id="scan-list"></div>
   </div>
@@ -159,7 +163,11 @@ c01H1001
 c01H1002
 c01H1003</textarea>
         <p class="hint">The last three are example values. Replace them with your own. To print a name under a barcode, add it after a bar: <code>c01H1000 | Bin A-12</code>. Names always print. Pasting two columns from a spreadsheet works too.</p>
-        <button type="button" class="linkbtn" id="clear-codes">Clear all codes</button>
+        <div class="actions">
+          <button type="button" class="linkbtn" id="share-all">Copy share link for all codes</button>
+          <button type="button" class="linkbtn" id="clear-codes">Clear all codes</button>
+        </div>
+        <p class="hint" id="share-all-note" role="status"></p>
         <div class="err" id="err" hidden></div>
       </div>
 
@@ -775,8 +783,73 @@ fetch("cards.json").then(r => { if (!r.ok) throw new Error(r.status); return r.j
   .then(d => setCards(d, "cards.json"))
   .catch(() => { $("cat-src").textContent = "No cards.json found next to this page."; renderCatalog(); });
 
+// ---- Share links: the codes box (or one build) travels in ?b=, base64url-encoded UTF-8 ----
+function toB64Url(text) {
+  const bytes = new TextEncoder().encode(text); let bin = "";
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromB64Url(s) {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  return new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+}
+function shareUrl(text) {
+  const u = new URL(location.href); u.search = ""; u.hash = "scan";
+  u.searchParams.set("b", toB64Url(text.trim()));
+  return u.toString();
+}
+function copyText(text, note) {
+  const done = () => { note.textContent = "Share link copied. Anyone who opens it gets these codes added to their list."; };
+  navigator.clipboard.writeText(text).then(done, () => {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch { note.textContent = "Copy this link: " + text; }
+    ta.remove();
+  });
+}
+$("share-all").addEventListener("click", () => {
+  const text = $("codes").value;
+  if (!text.trim()) { $("share-all-note").textContent = "There are no codes to share yet."; return; }
+  copyText(shareUrl(text), $("share-all-note"));
+});
+$("scan-share").addEventListener("click", () => {
+  const sel = parseBuilds($("codes").value).find(b => b.name === scanSel);
+  const text = sel ? (sel.loose ? sel.text : `# ${sel.name}\n${sel.text}`) : $("codes").value;
+  if (!text.trim()) { $("share-note").textContent = "There are no codes to share yet."; return; }
+  copyText(shareUrl(text), $("share-note"));
+});
+// Opening a share link adds its builds to this browser's list (never replaces it), then shows them in Scan view.
+function importShared() {
+  const p = new URLSearchParams(location.search).get("b");
+  if (p === null) return false;
+  const clean = new URL(location.href); clean.searchParams.delete("b");
+  history.replaceState(null, "", clean.toString());
+  let text;
+  try { text = fromB64Url(p); } catch { $("share-note").textContent = "That share link is damaged, so nothing was added."; return true; }
+  const incoming = parseBuilds(text);
+  if (!incoming.length) return true;
+  if ($("codes").value.trim() === $("codes").defaultValue.trim()) $("codes").value = ""; // first visit: drop the example codes
+  const mine =parseBuilds($("codes").value);
+  const names = new Set(mine.map(b => b.name.toLowerCase()));
+  const added = [];
+  for (const b of incoming) {
+    let name = b.loose ? "Shared build" : b.name;
+    const same = mine.find(m => m.name.toLowerCase() === name.toLowerCase());
+    if (same && same.text.trim() === b.text.trim()) { added.push(same.name); continue; } // already have it
+    if (names.has(name.toLowerCase())) { let n = 2; while (names.has(`${name} (${n})`.toLowerCase())) n++; name = `${name} (${n})`; }
+    names.add(name.toLowerCase());
+    appendText(`# ${name}\n${b.text.trim()}`);
+    added.push(name);
+  }
+  scanSel = added.length === 1 ? added[0] : "";
+  try { localStorage.setItem("c128scanBuild", scanSel); } catch {}
+  render(); renderCatalog();
+  $("share-note").textContent = `Added from a share link: ${added.join(", ")}.`;
+  showView("scan");
+  return true;
+}
+
 initSync();
-{
+if (!importShared()) {
   let v = location.hash === "#scan" ? "scan" : null;
   if (!v) { try { v = localStorage.getItem("c128view"); } catch {} }
   showView(v === "scan" ? "scan" : "make");
